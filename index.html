@@ -6,23 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
   </head>
   <body>
-    <h1>jquery-dimensionWatcher</h1>
+    <h1>jquery-dimensionWatcher [IN PROGRESS]</h1>
 
-    <div class="test">test</div>
+    <h2>Test resolveHeight</h2>
+    <div class="test1">test1</div>
+    <input type="button" id="test1Event" value="launch event test" />
+    <input type="button" id="test1Promise" value="launch promise test" />
+
+    <h2>Test resolveWidth</h2>
+    <div class="test2">test2</div>
+    <input type="button" id="test2Event" value="launch event test" />
+    <input type="button" id="test2Promise" value="launch promise test" />
+
+    <h2>Test watchHeight</h2>
+    <div class="test3">test3</div>
+    <input type="button" id="test3Event" value="launch event test" />
+    <input type="button" id="test3Promise" value="launch promise test" />
+
+    <h2>Test watchWidth</h2>
+    <div class="test4">test4</div>
+    <input type="button" id="test4Event" value="launch event test" />
+    <input type="button" id="test4Promise" value="launch promise test" />
 
     <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
     <script type="text/javascript">
       'use strict';
 
       $(document).ready(function() {
-
-        // jQuery object extend prototype
-        // bad idea to extend directly javascript DOM Element prototype, see http://perfectionkills.com/whats-wrong-with-extending-the-dom/
-        $.fn.greenify = function() {
-          return this.css('color', 'green');
-        }
-        var element = $('.test')
-        element.greenify();
 
         // Method that can return an element's height when it's changing through a promise
         // could throw a custom event too 
@@ -59,19 +69,70 @@
           return ret;
         }
 
-        /*var heightWatcher = function(previousVal) {
-          resolveElementHeightChange(element, {previousHeight: previousVal}).then(function(newVal, oldVal) {
-            console.log('resolve element\'s height to ' + newVal + ' through promise');
-            heightWatcher(newVal);
-          });
-        }
-        heightWatcher();*/
+        // Method that can return an element's width when it's changing through a promise
+        // could throw a custom event too 
+        var resolveElementWidthChange = function(element, args) {
+          if(!args) 
+            args = {};
+          var refreshDelay = args.refreshDelay ? args.refreshDelay : 500;
+          var eventName = args.eventName ? args.eventName : 'itemWidthChanged';
+          var previousWidth = args.previousWidth;
+          var level = args.level ? args.level : 0;
+          var ret = new $.Deferred();
+          var elmWidth;
 
-        /*element.on('itemHeightChanged', function(e) {
-          console.log('resolve element\'s height to ' + e.elementHeight + ' through event');
-          resolveElementHeightChange(element, {previousHeight: e.elementHeight});
-        });
-        resolveElementHeightChange(element);*/
+          if(element)
+            elmWidth = element[0].getBoundingClientRect().width;
+
+          if(elmWidth && (!previousWidth || previousWidth != elmWidth)) {
+            if(!args.disablePromise)
+              ret.resolve(elmWidth, previousWidth, level);
+            if(!args.disableEvent)
+              element.trigger(jQuery.Event(eventName, {elementHeight: elmWidth, previousWidth: previousWidth}));
+          } else {
+            args.previousWidth = elmWidth;
+            setTimeout(function () {
+              if(!args.disablePromise)
+                resolveElementWidthChange(element, {previousWidth: elmWidth, refreshDelay: refreshDelay, level: (level + 1)}).then(function(newWidthVal, previousWidthVal, levelVal) {
+                  ret.resolve(newWidthVal, previousWidthVal, level);
+                });
+              else
+                resolveElementWidthChange(element, {previousWidth: elmWidth, refreshDelay: refreshDelay, level: (level + 1)});
+            }, refreshDelay);
+          }
+        
+          return ret;
+        }
+
+        // following methods extend jQuery object prototype
+        // bad idea to extend directly javascript DOM Element prototype, see http://perfectionkills.com/whats-wrong-with-extending-the-dom/
+
+        $.fn.resolveHeight = function(args) {
+          if(!args) 
+            args = {};
+          var element = this;
+          var ret;
+          if(!args.disablePromise)
+            ret = new $.Deferred();
+
+          resolveElementHeightChange(
+            element, 
+            {
+              previousHeight: args.previousHeight,
+              refreshDelay: args.refreshDelay,
+              eventName: args.eventName,
+              disableEvent: args.disableEvent, 
+              disablePromise: args.disablePromise
+            }
+          ).then(function(newVal, oldVal) {
+            console.log('resolve element\'s height to ' + newVal + ' through promise');
+            if(!args.disablePromise)
+              ret.resolve(newVal);
+          });
+
+          if(!args.disablePromise)
+            return ret;
+        }
 
         $.fn.watchHeight = function(args) {
           if(!args) 
@@ -80,7 +141,7 @@
           var ret;
           if(!args.disablePromise)
             ret = new $.Deferred();
-          var watcher = function(previousVal) {
+          var watcher = function() {
             resolveElementHeightChange(
               element, 
               {
@@ -95,7 +156,7 @@
               if(!args.disablePromise)
                 ret.resolve(newVal);
               args.previousHeight = newVal;
-              watcher(args);
+              watcher();
             });
           }
           watcher();
@@ -104,39 +165,230 @@
             return ret;
         }
 
-        // if you want to use event
-        /*element.on('itemHeightChanged', function(e) {
-          console.log('event!');
-          console.log(e);
-        });
-        element.watchHeight();*/
-
-        // if you want to use promise
-        /*var doSomethingOnHeightChange = function(args) {
+        $.fn.resolveWidth = function(args) {
           if(!args) 
             args = {};
-          element.watchHeight(args).then(function(newHeightVal) {
-            console.log('promise!');
-            console.log(newHeightVal);
-            args.previousHeight = newHeightVal;
-            doSomethingOnHeightChange(args);
+          var element = this;
+          var ret;
+          if(!args.disablePromise)
+            ret = new $.Deferred();
+
+          resolveElementWidthChange(
+            element, 
+            {
+              previousWidth: args.previousWidth,
+              refreshDelay: args.refreshDelay,
+              eventName: args.eventName,
+              disableEvent: args.disableEvent, 
+              disablePromise: args.disablePromise
+            }
+          ).then(function(newVal, oldVal) {
+            console.log('resolve element\'s width to ' + newVal + ' through promise');
+            if(!args.disablePromise)
+              ret.resolve(newVal);
           });
+
+          if(!args.disablePromise)
+            return ret;
         }
-        doSomethingOnHeightChange();*/
 
-        setTimeout(function() {
-          console.log('changing element\'s height v1');
-          element.height('500px');
-        }, 1000);
-        setTimeout(function() {
-          console.log('changing element\'s height v2');
-          element.height('100px');
-        }, 3000);
-        setTimeout(function() {
-          console.log('changing element\'s height v3');
-          element.height('100%');
-        }, 5000);
+        $.fn.watchWidth = function(args) {
+          if(!args) 
+            args = {};
+          var element = this;
+          var ret;
+          if(!args.disablePromise)
+            ret = new $.Deferred();
+          var watcher = function() {
+            resolveElementWidthChange(
+              element, 
+              {
+                previousWidth: args.previousWidth,
+                refreshDelay: args.refreshDelay,
+                eventName: args.eventName,
+                disableEvent: args.disableEvent, 
+                disablePromise: args.disablePromise
+              }
+            ).then(function(newVal, oldVal) {
+              console.log('resolve element\'s width to ' + newVal + ' through promise');
+              if(!args.disablePromise)
+                ret.resolve(newVal);
+              args.previousWidth = newVal;
+              watcher();
+            });
+          }
+          watcher();
 
+          if(!args.disablePromise)
+            return ret;
+        }
+
+      });
+    </script>
+
+    <script type="text/javascript">
+      'use strict';
+
+      $(document).ready(function() {
+        var test1 = $('.test1');
+        var test2 = $('.test2');
+        var test3 = $('.test3');
+        var test4 = $('.test4');
+
+        // Test resolveHeight
+        var launchTest1WithEvent = function() {
+          test1.on('itemHeightChanged', function(e) {
+            console.log('event!');
+            console.log(e);
+          });
+          test1.resolveHeight();
+
+          changeElementHeightForTest(test1);
+        }
+        $('#test1Event').click(launchTest1WithEvent);
+
+        var launchTest1WithPromise = function() {
+          var doSomethingOnHeightResolve = function(args) {
+            if(!args) 
+              args = {};
+            test1.resolveHeight(args).then(function(newHeightVal) {
+              console.log('promise!');
+              console.log(newHeightVal);
+              args.previousHeight = newHeightVal;
+              doSomethingOnHeightResolve(args);
+            });
+          }
+          doSomethingOnHeightResolve();
+
+          changeElementHeightForTest(test1);
+        }
+        $('#test1Promise').click(launchTest1WithPromise);
+
+        // Test resolveWidth
+        var launchTest2WithEvent = function() {
+          test2.on('itemWidthChanged', function(e) {
+            console.log('event!');
+            console.log(e);
+          });
+          test2.resolveWidth();
+
+          changeElementWidthForTest(test2);
+        }
+        $('#test2Event').click(launchTest2WithEvent);
+
+        var launchTest2WithPromise = function() {
+          var doSomethingOnWidthResolve = function(args) {
+            if(!args) 
+              args = {};
+            test2.resolveWidth(args).then(function(newWidthVal) {
+              console.log('promise!');
+              console.log(newWidthVal);
+              args.previousWidth = newWidthVal;
+              doSomethingOnWidthResolve(args);
+            });
+          }
+          doSomethingOnWidthResolve();
+
+          changeElementWidthForTest(test2);
+        }
+        $('#test2Promise').click(launchTest2WithPromise);
+
+        // Test watchHeight
+        var launchTest3WithEvent = function() {
+          test3.on('itemHeightChanged', function(e) {
+            console.log('event!');
+            console.log(e);
+          });
+          test3.watchHeight();
+
+          changeElementHeightForTest(test3);
+        }
+        $('#test3Event').click(launchTest3WithEvent);
+
+        var launchTest3WithPromise = function() {
+          var doSomethingOnHeightChange = function(args) {
+            if(!args) 
+              args = {};
+            test3.watchHeight(args).then(function(newHeightVal) {
+              console.log('promise!');
+              console.log(newHeightVal);
+              args.previousHeight = newHeightVal;
+              doSomethingOnHeightChange(args);
+            });
+          }
+          doSomethingOnHeightChange();
+
+          changeElementHeightForTest(test3);
+        }
+        $('#test3Promise').click(launchTest3WithPromise);
+
+        // Test watchWidth
+        var launchTest4WithEvent = function() {
+          test4.on('itemWidthChanged', function(e) {
+            console.log('event!');
+            console.log(e);
+          });
+          test4.watchWidth();
+
+          changeElementWidthForTest(test4);
+        }
+        $('#test4Event').click(launchTest4WithEvent);
+
+        var launchTest4WithPromise = function() {
+          var doSomethingOnWidthChange = function(args) {
+            if(!args) 
+              args = {};
+            test4.watchWidth(args).then(function(newWidthVal) {
+              console.log('promise!');
+              console.log(newWidthVal);
+              args.previousWidth = newWidthVal;
+              doSomethingOnWidthChange(args);
+            });
+          }
+          doSomethingOnWidthChange();
+
+          changeElementWidthForTest(test4);
+        }
+        $('#test4Promise').click(launchTest4WithPromise);
+
+        var changeElementHeightForTest = function(element) {
+          setTimeout(function() {
+            console.log('changing element\'s height v1');
+            element.height('500px');
+          }, 1000);
+          setTimeout(function() {
+            console.log('changing element\'s height v2');
+            element.height('100px');
+          }, 3000);
+          setTimeout(function() {
+            console.log('changing element\'s height v3');
+            element.height('100%');
+          }, 5000);
+          setTimeout(function() {
+            console.log('changing element\'s height v4');
+            element.html('test<br><br><br><br><br>');
+          }, 7000);
+        }
+
+        var changeElementWidthForTest = function(element) {
+          setTimeout(function() {
+            console.log('changing element\'s width v1');
+            element.width('500px');
+          }, 1000);
+          setTimeout(function() {
+            console.log('changing element\'s width v2');
+            element.width('100px');
+          }, 3000);
+          setTimeout(function() {
+            console.log('changing element\'s width v3');
+            element.width('100%');
+          }, 5000);
+          setTimeout(function() {
+            console.log('changing element\'s width v4');
+            element.html('test     ');
+          }, 7000);
+        }
+        
       });
     </script>
   
